@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# IDE / tooling
+.idea/
+.vscode/
+.claude/
+memory/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build / dist
+build/
+dist/
+*.spec
+
+# Logs
+logs/
+*.log
+
+# Trained artifacts / datasets (too large for git)
+artifacts/*.keras
+artifacts/*.h5
+artifacts/*.pt
+artifacts/*.onnx
+artifacts/labels.json
+data/
+training/datasets/
+
+# Raw samples collected from webcam
+samples/
+
+# Local overrides
+config.local.yaml
+settings.local.yaml

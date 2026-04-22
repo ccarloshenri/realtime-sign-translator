@@ -1,0 +1,51 @@
+# SignFlow Realtime — runtime configuration.
+# Values here are validated by src.implementations.config.yaml_configuration.AppConfig.
+
+camera:
+  device_index: 0
+  width: 1280
+  height: 720
+  target_fps: 30
+  flip_horizontal: true       # Mirror like a selfie camera
+
+vision:
+  max_num_hands: 2
+  min_detection_confidence: 0.6
+  min_tracking_confidence: 0.5
+  model_complexity: 1          # 0 = lite, 1 = full
+
+pipeline:
+  sequence_length: 30          # Frames per temporal window
+  min_confidence: 0.70         # Below this, UI shows "..."
+  smoothing_window: 5          # Running average over N predictions
+  min_dwell_frames: 4          # Minimum consecutive frames before label changes
+  publish_unchanged: false     # If true, re-publishes the same caption each frame
+
+classifier:
+  backend: mock                # mock | keras
+  model_path: artifacts/signflow_lstm.keras
+  labels_path: artifacts/labels.json
+  # Vocabulary used by the mock backend when no trained model is available:
+  mock_vocabulary:
+    - "olá"
+    - "obrigado"
+    - "ajuda"
+    - "sim"
+    - "não"
+
+ui:
+  language: pt_br              # pt_br | en
+  theme: dark                  # dark | light | system
+  window_title: "SignFlow Realtime"
+  preview_width: 720
+  preview_height: 405
+
+api:
+  host: 127.0.0.1
+  port: 8765
+  enable_websocket: true
+
+logging:
+  level: INFO                  # DEBUG | INFO | WARNING | ERROR
+  file: logs/signflow.log
+  console: true
