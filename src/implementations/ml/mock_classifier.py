@@ -57,16 +57,18 @@ class MockSequenceClassifier:
                 probabilities=uniform,
             )
 
+        # Bucket on the *mean hand position* only: it's slow-moving, so the
+        # same label wins many frames in a row and the smoother's dwell gate
+        # can actually promote it. Motion only boosts confidence.
         mean_pos = float(np.mean(sequence[:, :3]))
         motion_energy = float(np.mean(np.abs(np.diff(sequence, axis=0))))
 
-        bucket = int(
-            abs(math.floor(mean_pos * 97.0) + math.floor(motion_energy * 131.0))
-            % len(self._labels)
-        )
+        bucket = int(abs(math.floor(mean_pos * 97.0)) % len(self._labels))
 
         logits = np.full(len(self._labels), 0.1, dtype=np.float32)
-        logits[bucket] = 1.0 + min(motion_energy * 4.0, 2.5)
+        # 2.6 baseline is high enough that the softmax top-1 clears the 0.70
+        # default confidence threshold even with zero motion.
+        logits[bucket] = 2.6 + min(motion_energy * 2.0, 2.0)
         probs = _softmax(logits)
 
         top = int(np.argmax(probs))

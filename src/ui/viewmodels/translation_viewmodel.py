@@ -82,5 +82,7 @@ class TranslationViewModel:
             self._state.buffer_fill = state.buffer_fill
             self._state.fps = state.fps
             self._state.running = state.running
-            if not state.hand_detected and self._state.confidence < 0.1:
-                self._state.caption = self._language.no_hand_text
+            # Intentionally do NOT overwrite `caption` here. The CaptionPanel's
+            # hint label already surfaces the "no hand" status via color/text;
+            # clobbering the main label on every brief MediaPipe flicker would
+            # erase the last published prediction.
