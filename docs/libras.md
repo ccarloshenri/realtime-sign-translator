@@ -74,7 +74,20 @@ ordem ao carregar o modelo.
 
 Há dois caminhos, dependendo de ter tempo pra gravar ou não.
 
-### Caminho rápido: usar MINDS-Libras (dataset público, CC-BY 4.0)
+### Caminho mais rápido: treinar no Colab (GPU grátis, nada roda local)
+
+Abra [`notebooks/train_libras_colab.ipynb`](../notebooks/train_libras_colab.ipynb)
+direto no Google Colab:
+
+<https://colab.research.google.com/github/ccarloshenri/realtime-sign-translator/blob/master/notebooks/train_libras_colab.ipynb>
+
+O notebook baixa o MINDS-Libras nos servidores do Google, extrai
+landmarks, treina um Bi-LSTM em GPU T4 e te devolve os dois arquivos
+(`libras_lstm.keras` + `libras_labels.json`) pra você colocar em
+`artifacts/` localmente. Nada pesado roda na sua máquina — só o download
+final dos artefatos treinados (poucos MB).
+
+### Caminho local: usar MINDS-Libras na sua máquina
 
 Em vez de gravar suas próprias amostras, baixe um dataset brasileiro
 real e deixe o script converter pra nosso formato. O vocabulário vai
