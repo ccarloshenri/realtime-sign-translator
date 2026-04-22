@@ -69,6 +69,7 @@ class RunTranslationPipeline:
         smoother: PredictionSmoother,
         logger: ILogger,
         target_fps: int = 30,
+        source: str = "camera",
     ) -> None:
         self._camera = camera
         self._extractor = extractor
@@ -78,6 +79,7 @@ class RunTranslationPipeline:
         self._smoother = smoother
         self._logger = logger
         self._target_period = 1.0 / max(target_fps, 1)
+        self._source = source
 
         self._callbacks = PipelineCallbacks()
         self._thread: threading.Thread | None = None
@@ -159,6 +161,7 @@ class RunTranslationPipeline:
                     label=prediction.label,
                     confidence=prediction.confidence,
                     sequence_size=self._buffer.sequence_length,
+                    source=self._source,
                 )
                 self._notify_prediction(sign)
                 self._logger.info(

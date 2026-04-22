@@ -37,6 +37,7 @@ artifacts/*.pt
 artifacts/*.onnx
 artifacts/*.task
 artifacts/labels.json
+artifacts/libras_labels.json
 data/
 training/datasets/
 

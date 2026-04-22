@@ -40,7 +40,7 @@ class PipelineConfig(BaseModel):
 
 
 class ClassifierConfig(BaseModel):
-    backend: Literal["mock", "keras", "gesture_recognizer"] = "mock"
+    backend: Literal["mock", "keras", "gesture_recognizer", "libras"] = "mock"
     model_path: str = "artifacts/signflow_lstm.keras"
     labels_path: str = "artifacts/labels.json"
     gesture_model_path: str = "artifacts/gesture_recognizer.task"
@@ -54,6 +54,11 @@ class ClassifierConfig(BaseModel):
         if not v:
             raise ValueError("mock_vocabulary must contain at least one label")
         return v
+
+
+class LibrasConfig(BaseModel):
+    model_path: str = "artifacts/libras_lstm.keras"
+    labels_path: str = "artifacts/libras_labels.json"
 
 
 class UIConfig(BaseModel):
@@ -81,6 +86,7 @@ class AppConfig(BaseModel):
     vision: VisionConfig = Field(default_factory=VisionConfig)
     pipeline: PipelineConfig = Field(default_factory=PipelineConfig)
     classifier: ClassifierConfig = Field(default_factory=ClassifierConfig)
+    libras: LibrasConfig = Field(default_factory=LibrasConfig)
     ui: UIConfig = Field(default_factory=UIConfig)
     api: ApiConfig = Field(default_factory=ApiConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)

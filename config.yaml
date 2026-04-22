@@ -28,7 +28,10 @@ classifier:
   #   gesture_recognizer  — Google's pretrained 7-gesture recognizer (works
   #                         out of the box; NOT Libras — ASL-style static
   #                         gestures: 👍 👎 ✌️ ✊ 🖐 ☝️ ❤️ "I love you")
-  #   keras               — your own trained model (see training/)
+  #   keras               — a generic Keras model trained on raw landmarks
+  #   libras              — dedicated Libras classifier (trained via
+  #                         `training/libras/train_libras_model.py`, uses
+  #                         LibrasFeatureExtractor with velocity channels)
   backend: gesture_recognizer
   model_path: artifacts/signflow_lstm.keras
   labels_path: artifacts/labels.json
@@ -44,6 +47,15 @@ classifier:
     - "eu"
     - "você"
     - "amor"
+
+libras:
+  # Paths to the dedicated Libras model + labels, produced by
+  # `python -m training.libras.train_libras_model`. If either is missing
+  # when `classifier.backend: libras` is selected, the app falls back to
+  # the mock backend seeded with LIBRAS_BASE_VOCABULARY and logs
+  # `libras.fallback_to_mock`.
+  model_path: artifacts/libras_lstm.keras
+  labels_path: artifacts/libras_labels.json
 
 ui:
   language: pt_br              # pt_br | en

@@ -17,6 +17,17 @@ from src.implementations.config.yaml_configuration import (
     AppConfig,
     YamlConfigurationProvider,
 )
+from src.implementations.libras.libras_caption_service import LibrasCaptionService
+from src.implementations.libras.libras_feature_extractor import (
+    LibrasFeatureExtractor,
+)
+from src.implementations.libras.libras_inference_service import (
+    LibrasInferenceService,
+)
+from src.implementations.libras.libras_sequence_classifier import (
+    LIBRAS_MODEL_MISSING_HINT,
+    LibrasSequenceClassifier,
+)
 from src.implementations.logging.structured_logger import build_logger
 from src.implementations.ml.gesture_recognizer_classifier import (
     GestureRecognizerClassifier,
@@ -38,6 +49,7 @@ from src.interface.camera_provider import ICameraProvider  # noqa: F401 (typing 
 from src.interface.hand_landmark_extractor import IHandLandmarkExtractor
 from src.interface.logger import ILogger
 from src.interface.sequence_classifier import ISequenceClassifier
+from src.models.libras_vocabulary import LIBRAS_BASE_VOCABULARY
 from src.server.server import ApiServer, build_api
 from src.server.state import ApiState
 from src.server.websocket import WebSocketBroadcaster
@@ -53,6 +65,7 @@ class AppServices:
     view_model: TranslationViewModel
     api_server: ApiServer
     api_state: ApiState
+    libras_inference: LibrasInferenceService | None = None
 
 
 def bootstrap(config_path: str | Path = "config.yaml") -> AppServices:
@@ -98,19 +111,30 @@ def bootstrap(config_path: str | Path = "config.yaml") -> AppServices:
         smoother=smoother,
         logger=logger,
         target_fps=config.camera.target_fps,
+        source="libras" if config.classifier.backend == "libras" else "camera",
     )
 
     api_state = ApiState()
     broadcaster = WebSocketBroadcaster(logger)
     api_server = build_api(config, api_state, broadcaster, logger)
 
-    ws_publisher = WebSocketCaptionPublisher(api_state, broadcaster)
+    ws_publisher: "WebSocketCaptionPublisher | LibrasCaptionService" = (
+        WebSocketCaptionPublisher(api_state, broadcaster)
+    )
+    if config.classifier.backend == "libras":
+        ws_publisher = LibrasCaptionService(downstream=ws_publisher)
+
     pipeline.callbacks.on_prediction.append(ws_publisher.publish)
     pipeline.callbacks.on_state.append(
         lambda st: api_state.set_pipeline_running(st.running)
     )
 
     view_model = TranslationViewModel(pipeline, language=config.ui.language)
+    libras_inference = (
+        LibrasInferenceService(pipeline)
+        if config.classifier.backend == "libras"
+        else None
+    )
 
     logger.info(
         "bootstrap.done",
@@ -126,6 +150,7 @@ def bootstrap(config_path: str | Path = "config.yaml") -> AppServices:
         view_model=view_model,
         api_server=api_server,
         api_state=api_state,
+        libras_inference=libras_inference,
     )
 
 
@@ -187,6 +212,35 @@ def _build_vision_stack(
             return extractor, classifier
         except (FileNotFoundError, ImportError) as exc:
             logger.error("classifier.keras_fallback", error=str(exc))
+
+    if backend == "libras":
+        try:
+            classifier = LibrasSequenceClassifier(
+                model_path=config.libras.model_path,
+                labels_path=config.libras.labels_path,
+                logger=logger,
+                feature_extractor=LibrasFeatureExtractor(
+                    include_both_hands=True
+                ),
+            )
+            return extractor, classifier
+        except (FileNotFoundError, ImportError, ValueError) as exc:
+            logger.error(
+                "libras.fallback_to_mock",
+                error=str(exc),
+                hint=LIBRAS_MODEL_MISSING_HINT,
+            )
+            # Fall through to the mock with the Libras seed vocabulary so
+            # the app still boots during the "I haven't trained yet" phase.
+            logger.info(
+                "libras.seed_vocabulary", labels=list(LIBRAS_BASE_VOCABULARY)
+            )
+            classifier = MockSequenceClassifier(
+                labels=LIBRAS_BASE_VOCABULARY,
+                sequence_length=config.pipeline.sequence_length,
+                feature_size=feature_size,
+            )
+            return extractor, classifier
 
     logger.info(
         "classifier.mock_selected",
