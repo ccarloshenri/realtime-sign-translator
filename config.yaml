@@ -26,13 +26,22 @@ classifier:
   backend: mock                # mock | keras
   model_path: artifacts/signflow_lstm.keras
   labels_path: artifacts/labels.json
-  # Vocabulary used by the mock backend when no trained model is available:
+  # Vocabulary used by the mock backend. This is ONLY for demoing the UI
+  # pipeline — the mock just cycles through these labels on a timer, it
+  # does NOT recognize real signs. Train a real model (see training/) to
+  # actually translate Libras; the real vocabulary is defined by what
+  # you collect in `samples/` and is written to artifacts/labels.json.
   mock_vocabulary:
     - "olá"
-    - "obrigado"
-    - "ajuda"
+    - "tchau"
     - "sim"
     - "não"
+    - "obrigado"
+    - "por favor"
+    - "ajuda"
+    - "eu"
+    - "você"
+    - "amor"
 
 ui:
   language: pt_br              # pt_br | en

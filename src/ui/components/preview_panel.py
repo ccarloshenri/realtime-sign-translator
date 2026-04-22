@@ -1,9 +1,8 @@
 """
-Live webcam preview.
+Minimal webcam preview.
 
-Overlays MediaPipe hand landmarks on the frame so the user can see that the
-extractor is actually tracking their hands. Shows a "HAND DETECTED" /
-"NO HAND" pill, an FPS counter, and the temporal buffer fill bar.
+Shows the current frame with MediaPipe hand landmarks drawn on top — no
+pills, no FPS, no bar charts. The parent window owns status indicators.
 """
 from __future__ import annotations
 
@@ -12,7 +11,7 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from src.ui.theme import FONT_HEADING, FONT_SMALL, PALETTE
+from src.ui.theme import PALETTE
 
 _HAND_CONNECTIONS: tuple[tuple[int, int], ...] = (
     (0, 1), (1, 2), (2, 3), (3, 4),
@@ -26,38 +25,14 @@ _HAND_CONNECTIONS: tuple[tuple[int, int], ...] = (
 
 class PreviewPanel(ctk.CTkFrame):
     def __init__(self, master, preview_size: tuple[int, int]) -> None:
-        super().__init__(master, fg_color=PALETTE.bg_card, corner_radius=12)
+        super().__init__(
+            master,
+            fg_color=PALETTE.bg_card,
+            corner_radius=12,
+            border_width=1,
+            border_color=PALETTE.border,
+        )
         self._preview_size = preview_size
-
-        header = ctk.CTkFrame(self, fg_color="transparent")
-        header.pack(fill="x", padx=16, pady=(12, 8))
-
-        ctk.CTkLabel(
-            header,
-            text="Preview",
-            font=FONT_HEADING,
-            text_color=PALETTE.text_primary,
-        ).pack(side="left")
-
-        self._status_pill = ctk.CTkLabel(
-            header,
-            text="● aguardando",
-            font=FONT_SMALL,
-            fg_color=PALETTE.bg_secondary,
-            text_color=PALETTE.text_muted,
-            corner_radius=999,
-            padx=12,
-            pady=4,
-        )
-        self._status_pill.pack(side="right")
-
-        self._fps_label = ctk.CTkLabel(
-            header,
-            text="0 FPS",
-            font=FONT_SMALL,
-            text_color=PALETTE.text_muted,
-        )
-        self._fps_label.pack(side="right", padx=(0, 12))
 
         self._image_label = ctk.CTkLabel(
             self,
@@ -67,16 +42,7 @@ class PreviewPanel(ctk.CTkFrame):
             fg_color=PALETTE.bg_primary,
             corner_radius=8,
         )
-        self._image_label.pack(padx=16, pady=(0, 8))
-
-        self._buffer_bar = ctk.CTkProgressBar(
-            self,
-            height=6,
-            progress_color=PALETTE.accent,
-            fg_color=PALETTE.bg_secondary,
-        )
-        self._buffer_bar.set(0.0)
-        self._buffer_bar.pack(fill="x", padx=16, pady=(0, 12))
+        self._image_label.pack(padx=6, pady=6)
 
         self._placeholder = self._build_placeholder()
         self._image_label.configure(image=self._placeholder)
@@ -86,24 +52,7 @@ class PreviewPanel(ctk.CTkFrame):
         self,
         frame_bgr: np.ndarray | None,
         landmarks_per_hand: tuple[np.ndarray, ...],
-        hand_detected: bool,
-        buffer_fill: float,
-        fps: float,
     ) -> None:
-        self._buffer_bar.set(max(0.0, min(1.0, buffer_fill)))
-        self._fps_label.configure(text=f"{fps:.0f} FPS")
-
-        if hand_detected:
-            self._status_pill.configure(
-                text="● mão detectada",
-                text_color=PALETTE.success,
-            )
-        else:
-            self._status_pill.configure(
-                text="○ sem mão",
-                text_color=PALETTE.text_muted,
-            )
-
         if frame_bgr is None:
             self._image_label.configure(image=self._placeholder)
             self._current_image = self._placeholder
@@ -111,7 +60,7 @@ class PreviewPanel(ctk.CTkFrame):
 
         rendered = self._render(frame_bgr, landmarks_per_hand)
         self._image_label.configure(image=rendered)
-        self._current_image = rendered
+        self._current_image = rendered  # Keep the reference alive.
 
     def _render(
         self,
@@ -123,9 +72,14 @@ class PreviewPanel(ctk.CTkFrame):
             self._draw_landmarks(frame_bgr, landmarks_per_hand, w, h)
 
         frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-        pil_image = Image.fromarray(frame_rgb)
-        pil_image = pil_image.resize(self._preview_size, Image.BILINEAR)
-        return ctk.CTkImage(light_image=pil_image, dark_image=pil_image, size=self._preview_size)
+        pil_image = Image.fromarray(frame_rgb).resize(
+            self._preview_size, Image.BILINEAR
+        )
+        return ctk.CTkImage(
+            light_image=pil_image,
+            dark_image=pil_image,
+            size=self._preview_size,
+        )
 
     @staticmethod
     def _draw_landmarks(

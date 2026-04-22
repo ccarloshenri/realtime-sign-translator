@@ -1,23 +1,37 @@
 """
-Desktop shell.
+Minimal desktop shell.
 
-Polls the TranslationViewModel at ~30 Hz and pushes its current state into
-the child panels. The UI is intentionally stateless — it just mirrors what
-the ViewModel tells it to show.
+Layout (no nested panels, no metric dashboards):
+
+    ┌────────────────────────────────────────────────────────┐
+    │ SignFlow                                    [ Parar ]  │
+    │                                                        │
+    │                                                        │
+    │                    OLÁ                                 │
+    │                                                        │
+    │              92% · mão detectada                       │
+    │                                                        │
+    │                                         ┌───────────┐  │
+    │                                         │  preview  │  │
+    │                                         └───────────┘  │
+    └────────────────────────────────────────────────────────┘
+
+The caption dominates the screen. Everything else (status, preview) is
+intentionally discreet.
 """
 from __future__ import annotations
 
 import customtkinter as ctk
 
 from src.implementations.config.yaml_configuration import AppConfig
-from src.ui.components import (
-    CaptionPanel,
-    ConfidencePanel,
-    PreviewPanel,
-    SettingsPanel,
-)
-from src.ui.theme import FONT_SMALL, FONT_TITLE, PALETTE
+from src.ui.components import PreviewPanel
+from src.ui.theme import PALETTE
 from src.ui.viewmodels.translation_viewmodel import TranslationViewModel
+
+_FONT_TITLE = ("Segoe UI Semibold", 20)
+_FONT_CAPTION = ("Segoe UI", 88, "bold")
+_FONT_STATUS = ("Segoe UI", 14)
+_FONT_BUTTON = ("Segoe UI Semibold", 13)
 
 
 class MainWindow(ctk.CTk):
@@ -30,10 +44,11 @@ class MainWindow(ctk.CTk):
         super().__init__()
         self._view_model = view_model
         self._config = config
+        self._running = False
 
         self.title(config.ui.window_title)
-        self.geometry("1280x760")
-        self.minsize(1100, 680)
+        self.geometry("1200x720")
+        self.minsize(960, 600)
         self.configure(fg_color=PALETTE.bg_primary)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -41,61 +56,56 @@ class MainWindow(ctk.CTk):
         self._schedule_refresh()
 
     def _build_layout(self) -> None:
-        header = ctk.CTkFrame(self, fg_color="transparent", height=64)
-        header.pack(fill="x", padx=24, pady=(20, 8))
+        # --- Header -----------------------------------------------------
+        header = ctk.CTkFrame(self, fg_color="transparent")
+        header.pack(fill="x", padx=28, pady=(20, 0))
 
         ctk.CTkLabel(
             header,
-            text="SignFlow Realtime",
-            font=FONT_TITLE,
+            text="SignFlow",
+            font=_FONT_TITLE,
             text_color=PALETTE.text_primary,
         ).pack(side="left")
 
-        ctk.CTkLabel(
+        self._toggle_btn = ctk.CTkButton(
             header,
-            text=f"realtime sign translator · backend: {self._config.classifier.backend}",
-            font=FONT_SMALL,
-            text_color=PALETTE.text_muted,
-        ).pack(side="left", padx=16, pady=4)
-
-        body = ctk.CTkFrame(self, fg_color="transparent")
-        body.pack(fill="both", expand=True, padx=24, pady=(8, 16))
-
-        body.grid_columnconfigure(0, weight=3)
-        body.grid_columnconfigure(1, weight=2)
-        body.grid_rowconfigure(0, weight=0)
-        body.grid_rowconfigure(1, weight=1)
-
-        preview_size = (
-            self._config.ui.preview_width,
-            self._config.ui.preview_height,
+            text="Parar",
+            width=110,
+            height=36,
+            font=_FONT_BUTTON,
+            command=self._handle_toggle,
+            fg_color=PALETTE.danger,
+            hover_color=PALETTE.danger,
         )
+        self._toggle_btn.pack(side="right")
 
-        self._preview = PreviewPanel(body, preview_size=preview_size)
-        self._preview.grid(row=0, column=0, rowspan=2, sticky="nsew", padx=(0, 12))
+        # --- Center body (caption + status, absolutely positioned) ------
+        body = ctk.CTkFrame(self, fg_color=PALETTE.bg_primary)
+        body.pack(fill="both", expand=True, padx=28, pady=20)
 
-        self._caption = CaptionPanel(
+        self._caption_label = ctk.CTkLabel(
             body,
-            placeholder_text=self._config.ui.language.waiting_text,
+            text=self._config.ui.language.waiting_text,
+            font=_FONT_CAPTION,
+            text_color=PALETTE.text_primary,
+            wraplength=900,
+            justify="center",
         )
-        self._caption.grid(row=0, column=1, sticky="nsew", pady=(0, 12))
+        self._caption_label.place(relx=0.5, rely=0.45, anchor="center")
 
-        right = ctk.CTkFrame(body, fg_color="transparent")
-        right.grid(row=1, column=1, sticky="nsew")
-        right.grid_rowconfigure(0, weight=0)
-        right.grid_rowconfigure(1, weight=0)
-        right.grid_columnconfigure(0, weight=1)
-
-        self._confidence = ConfidencePanel(right)
-        self._confidence.grid(row=0, column=0, sticky="ew", pady=(0, 12))
-
-        self._settings = SettingsPanel(
-            right,
-            config=self._config,
-            on_start=self._view_model.start,
-            on_stop=self._view_model.stop,
+        self._status_label = ctk.CTkLabel(
+            body,
+            text="",
+            font=_FONT_STATUS,
+            text_color=PALETTE.text_muted,
         )
-        self._settings.grid(row=1, column=0, sticky="ew")
+        self._status_label.place(relx=0.5, rely=0.60, anchor="center")
+
+        # --- Small preview (bottom-right corner) ------------------------
+        self._preview = PreviewPanel(body, preview_size=(320, 180))
+        self._preview.place(relx=1.0, rely=1.0, anchor="se")
+
+    # ---- refresh ------------------------------------------------------
 
     def _schedule_refresh(self) -> None:
         self.after(self._REFRESH_INTERVAL_MS, self._refresh)
@@ -103,26 +113,64 @@ class MainWindow(ctk.CTk):
     def _refresh(self) -> None:
         try:
             state = self._view_model.take_state()
+
+            self._caption_label.configure(text=state.caption or "…")
+            self._status_label.configure(
+                text=self._format_status(state),
+                text_color=self._status_color(state),
+            )
+
             self._preview.update_view(
                 frame_bgr=state.latest_frame,
                 landmarks_per_hand=state.landmarks_per_hand,
-                hand_detected=state.hand_detected,
-                buffer_fill=state.buffer_fill,
-                fps=state.fps,
             )
-            self._caption.update_view(
-                caption=state.caption,
-                running=state.running,
-                hand_detected=state.hand_detected,
-            )
-            self._confidence.update_view(
-                confidence=state.confidence,
-                buffer_fill=state.buffer_fill,
-                fps=state.fps,
-            )
-            self._settings.set_running(state.running)
+
+            self._set_running(state.running)
         finally:
             self._schedule_refresh()
+
+    # ---- helpers ------------------------------------------------------
+
+    @staticmethod
+    def _format_status(state) -> str:
+        if not state.running:
+            return "captura parada"
+        if not state.hand_detected:
+            return "aproxime a mão da câmera"
+        if state.confidence <= 0.0:
+            return f"analisando sequência… · buffer {int(state.buffer_fill * 100)}%"
+        return f"{int(state.confidence * 100)}% · mão detectada"
+
+    @staticmethod
+    def _status_color(state) -> str:
+        if not state.running:
+            return PALETTE.danger
+        if not state.hand_detected:
+            return PALETTE.warning
+        return PALETTE.accent
+
+    def _set_running(self, running: bool) -> None:
+        if running == self._running:
+            return
+        self._running = running
+        if running:
+            self._toggle_btn.configure(
+                text="Parar",
+                fg_color=PALETTE.danger,
+                hover_color=PALETTE.danger,
+            )
+        else:
+            self._toggle_btn.configure(
+                text="Iniciar",
+                fg_color=PALETTE.accent,
+                hover_color=PALETTE.accent_dim,
+            )
+
+    def _handle_toggle(self) -> None:
+        if self._running:
+            self._view_model.stop()
+        else:
+            self._view_model.start()
 
     def _on_close(self) -> None:
         try:

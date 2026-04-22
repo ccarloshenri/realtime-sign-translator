@@ -1,23 +1,22 @@
 """
 Mock temporal classifier.
 
-Used when no trained model is available yet. It's deliberately NOT random —
-it produces deterministic, plausible-looking predictions by hashing simple
-statistics of the input sequence (mean hand position, motion energy). That
-gives us a working end-to-end pipeline we can demo, while making it easy to
-swap in a real model by flipping a config flag.
-
-TODO(replace): swap the `classifier.backend` config to `keras` once a real
-model ships, and remove this from the production config.
+Used when no trained model is available yet. It is NOT a sign-language
+recognizer — it cycles through the configured vocabulary on a slow timer
+whenever a hand is present, purely so the UI can be demoed end-to-end
+without a trained model. Replace it with a real backend
+(`classifier.backend: keras`) once you have one.
 """
 from __future__ import annotations
 
-import math
+import time
 
 import numpy as np
 
 from src.interface.sequence_classifier import ClassifierOutput
 from src.models.confidence import Confidence
+
+_CYCLE_SECONDS = 3.0  # How long each mock label stays on-screen
 
 
 class MockSequenceClassifier:
@@ -32,6 +31,7 @@ class MockSequenceClassifier:
         self._labels = labels
         self._sequence_length = sequence_length
         self._feature_size = feature_size
+        self._start = time.monotonic()
 
     @property
     def labels(self) -> tuple[str, ...]:
@@ -57,18 +57,15 @@ class MockSequenceClassifier:
                 probabilities=uniform,
             )
 
-        # Bucket on the *mean hand position* only: it's slow-moving, so the
-        # same label wins many frames in a row and the smoother's dwell gate
-        # can actually promote it. Motion only boosts confidence.
-        mean_pos = float(np.mean(sequence[:, :3]))
+        # Cycle through the vocabulary on a wall clock so the demo stays
+        # visually alive regardless of what the user is signing. A real
+        # backend would replace this entire function.
+        elapsed = time.monotonic() - self._start
         motion_energy = float(np.mean(np.abs(np.diff(sequence, axis=0))))
-
-        bucket = int(abs(math.floor(mean_pos * 97.0)) % len(self._labels))
+        bucket = int(elapsed // _CYCLE_SECONDS) % len(self._labels)
 
         logits = np.full(len(self._labels), 0.1, dtype=np.float32)
-        # 2.6 baseline is high enough that the softmax top-1 clears the 0.70
-        # default confidence threshold even with zero motion.
-        logits[bucket] = 2.6 + min(motion_energy * 2.0, 2.0)
+        logits[bucket] = 2.8 + min(motion_energy * 2.0, 2.0)
         probs = _softmax(logits)
 
         top = int(np.argmax(probs))
