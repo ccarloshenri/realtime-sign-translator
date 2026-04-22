@@ -1,10 +1,11 @@
 """
 Composition root.
 
-Builds all concrete implementations (camera, extractor, classifier, API, etc.)
-and wires them to the pipeline use case through the project's interfaces.
-The rest of the codebase never constructs these classes directly — every
-consumer reads them off the returned `AppServices` container.
+Builds all concrete implementations (camera, extractor, classifier, API,
+etc.) and wires them to the pipeline use case through the project's
+interfaces. The rest of the codebase never constructs these classes
+directly — every consumer reads them off the returned `AppServices`
+container.
 """
 from __future__ import annotations
 
@@ -17,6 +18,9 @@ from src.implementations.config.yaml_configuration import (
     YamlConfigurationProvider,
 )
 from src.implementations.logging.structured_logger import build_logger
+from src.implementations.ml.gesture_recognizer_classifier import (
+    GestureRecognizerClassifier,
+)
 from src.implementations.ml.mock_classifier import MockSequenceClassifier
 from src.implementations.pipeline.run_translation_pipeline import (
     RunTranslationPipeline,
@@ -27,6 +31,11 @@ from src.implementations.services.sequence_buffer import SequenceBuffer
 from src.implementations.vision.mediapipe_extractor import (
     MediaPipeHandLandmarkExtractor,
 )
+from src.implementations.vision.mediapipe_gesture_extractor import (
+    MediaPipeGestureExtractor,
+)
+from src.interface.camera_provider import ICameraProvider  # noqa: F401 (typing docs)
+from src.interface.hand_landmark_extractor import IHandLandmarkExtractor
 from src.interface.logger import ILogger
 from src.interface.sequence_classifier import ISequenceClassifier
 from src.server.server import ApiServer, build_api
@@ -65,16 +74,7 @@ def bootstrap(config_path: str | Path = "config.yaml") -> AppServices:
         flip_horizontal=config.camera.flip_horizontal,
     )
 
-    extractor = MediaPipeHandLandmarkExtractor(
-        logger=logger,
-        model_path=config.vision.model_path,
-        max_num_hands=config.vision.max_num_hands,
-        min_detection_confidence=config.vision.min_detection_confidence,
-        min_tracking_confidence=config.vision.min_tracking_confidence,
-        model_complexity=config.vision.model_complexity,
-    )
-
-    classifier = _build_classifier(config, feature_size, logger)
+    extractor, classifier = _build_vision_stack(config, feature_size, logger)
 
     buffer = SequenceBuffer(
         sequence_length=classifier.sequence_length,
@@ -129,22 +129,62 @@ def bootstrap(config_path: str | Path = "config.yaml") -> AppServices:
     )
 
 
-def _build_classifier(
+def _build_vision_stack(
     config: AppConfig,
     feature_size: int,
     logger: ILogger,
-) -> ISequenceClassifier:
-    if config.classifier.backend == "keras":
+) -> tuple[IHandLandmarkExtractor, ISequenceClassifier]:
+    """
+    Returns (extractor, classifier). These are paired when the selected
+    backend runs landmark extraction and classification in a single
+    MediaPipe forward pass (the GestureRecognizer backend).
+    """
+    backend = config.classifier.backend
+
+    if backend == "gesture_recognizer":
+        try:
+            gesture_extractor = MediaPipeGestureExtractor(
+                logger=logger,
+                model_path=config.classifier.gesture_model_path,
+                max_num_hands=config.vision.max_num_hands,
+                min_detection_confidence=config.vision.min_detection_confidence,
+                min_tracking_confidence=config.vision.min_tracking_confidence,
+            )
+            classifier = GestureRecognizerClassifier(
+                extractor=gesture_extractor,
+                sequence_length=config.pipeline.sequence_length,
+            )
+            return gesture_extractor, classifier
+        except FileNotFoundError as exc:
+            logger.error(
+                "classifier.gesture_recognizer_fallback",
+                error=str(exc),
+                hint="run `python scripts/download_models.py`",
+            )
+
+    # Default extractor: hand-landmark-only. Used with both the mock and
+    # the Keras backends.
+    extractor = MediaPipeHandLandmarkExtractor(
+        logger=logger,
+        model_path=config.vision.model_path,
+        max_num_hands=config.vision.max_num_hands,
+        min_detection_confidence=config.vision.min_detection_confidence,
+        min_tracking_confidence=config.vision.min_tracking_confidence,
+        model_complexity=config.vision.model_complexity,
+    )
+
+    if backend == "keras":
         from src.implementations.ml.keras_classifier import (
             KerasSequenceClassifier,
         )
 
         try:
-            return KerasSequenceClassifier(
+            classifier = KerasSequenceClassifier(
                 model_path=config.classifier.model_path,
                 labels_path=config.classifier.labels_path,
                 logger=logger,
             )
+            return extractor, classifier
         except (FileNotFoundError, ImportError) as exc:
             logger.error("classifier.keras_fallback", error=str(exc))
 
@@ -152,8 +192,9 @@ def _build_classifier(
         "classifier.mock_selected",
         vocabulary=config.classifier.mock_vocabulary,
     )
-    return MockSequenceClassifier(
+    classifier = MockSequenceClassifier(
         labels=tuple(config.classifier.mock_vocabulary),
         sequence_length=config.pipeline.sequence_length,
         feature_size=feature_size,
     )
+    return extractor, classifier

@@ -40,9 +40,10 @@ class PipelineConfig(BaseModel):
 
 
 class ClassifierConfig(BaseModel):
-    backend: Literal["mock", "keras"] = "mock"
+    backend: Literal["mock", "keras", "gesture_recognizer"] = "mock"
     model_path: str = "artifacts/signflow_lstm.keras"
     labels_path: str = "artifacts/labels.json"
+    gesture_model_path: str = "artifacts/gesture_recognizer.task"
     mock_vocabulary: list[str] = Field(
         default_factory=lambda: ["olá", "obrigado", "ajuda"]
     )

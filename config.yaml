@@ -23,14 +23,16 @@ pipeline:
   publish_unchanged: false     # If true, re-publishes the same caption each frame
 
 classifier:
-  backend: mock                # mock | keras
+  # Backend options:
+  #   mock                — cycles through mock_vocabulary on a timer (demo only)
+  #   gesture_recognizer  — Google's pretrained 7-gesture recognizer (works
+  #                         out of the box; NOT Libras — ASL-style static
+  #                         gestures: 👍 👎 ✌️ ✊ 🖐 ☝️ ❤️ "I love you")
+  #   keras               — your own trained model (see training/)
+  backend: gesture_recognizer
   model_path: artifacts/signflow_lstm.keras
   labels_path: artifacts/labels.json
-  # Vocabulary used by the mock backend. This is ONLY for demoing the UI
-  # pipeline — the mock just cycles through these labels on a timer, it
-  # does NOT recognize real signs. Train a real model (see training/) to
-  # actually translate Libras; the real vocabulary is defined by what
-  # you collect in `samples/` and is written to artifacts/labels.json.
+  gesture_model_path: artifacts/gesture_recognizer.task
   mock_vocabulary:
     - "olá"
     - "tchau"
