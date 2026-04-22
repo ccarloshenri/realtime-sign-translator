@@ -67,6 +67,7 @@ def bootstrap(config_path: str | Path = "config.yaml") -> AppServices:
 
     extractor = MediaPipeHandLandmarkExtractor(
         logger=logger,
+        model_path=config.vision.model_path,
         max_num_hands=config.vision.max_num_hands,
         min_detection_confidence=config.vision.min_detection_confidence,
         min_tracking_confidence=config.vision.min_tracking_confidence,

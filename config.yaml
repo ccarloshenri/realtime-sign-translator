@@ -12,7 +12,8 @@ vision:
   max_num_hands: 2
   min_detection_confidence: 0.6
   min_tracking_confidence: 0.5
-  model_complexity: 1          # 0 = lite, 1 = full
+  model_complexity: 1          # kept for backward compat; ignored by Tasks API
+  model_path: artifacts/hand_landmarker.task  # download via scripts/download_models.py
 
 pipeline:
   sequence_length: 30          # Frames per temporal window

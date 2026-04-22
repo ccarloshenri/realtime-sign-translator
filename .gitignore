@@ -35,6 +35,7 @@ artifacts/*.keras
 artifacts/*.h5
 artifacts/*.pt
 artifacts/*.onnx
+artifacts/*.task
 artifacts/labels.json
 data/
 training/datasets/

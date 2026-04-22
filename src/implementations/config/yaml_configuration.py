@@ -28,6 +28,7 @@ class VisionConfig(BaseModel):
     min_detection_confidence: float = Field(default=0.6, ge=0.0, le=1.0)
     min_tracking_confidence: float = Field(default=0.5, ge=0.0, le=1.0)
     model_complexity: Literal[0, 1] = 1
+    model_path: str = "artifacts/hand_landmarker.task"
 
 
 class PipelineConfig(BaseModel):
