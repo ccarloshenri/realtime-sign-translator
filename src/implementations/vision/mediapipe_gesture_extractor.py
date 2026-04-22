@@ -98,6 +98,11 @@ class MediaPipeGestureExtractor:
                 top = gestures[0][0]
                 self._latest_label = top.category_name
                 self._latest_score = float(top.score)
+                self._logger.debug(
+                    "gesture.raw",
+                    label=self._latest_label,
+                    score=round(self._latest_score, 3),
+                )
             else:
                 self._latest_label = "None"
                 self._latest_score = 0.0

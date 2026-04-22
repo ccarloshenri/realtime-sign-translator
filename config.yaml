@@ -17,9 +17,9 @@ vision:
 
 pipeline:
   sequence_length: 30          # Frames per temporal window
-  min_confidence: 0.70         # Below this, UI shows "..."
-  smoothing_window: 5          # Running average over N predictions
-  min_dwell_frames: 4          # Minimum consecutive frames before label changes
+  min_confidence: 0.55         # Below this, UI keeps the last stable caption
+  smoothing_window: 2          # Running average over N predictions (smaller = more responsive)
+  min_dwell_frames: 3          # Minimum consecutive frames before label changes
   publish_unchanged: false     # If true, re-publishes the same caption each frame
 
 classifier:
