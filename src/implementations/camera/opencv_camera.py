@@ -1,8 +1,9 @@
 """
 OpenCV-backed webcam wrapper.
 
-On Windows we explicitly prefer the DirectShow backend (CAP_DSHOW) to avoid
-the slow MSMF start-up and the warnings it spits out on first open.
+On Windows we try multiple backends in order (DirectShow first, then Media
+Foundation, then "any"). Some drivers reject one and accept the other; at
+least one almost always works if a camera is physically available.
 """
 from __future__ import annotations
 
@@ -17,6 +18,16 @@ from src.interface.logger import ILogger
 
 class CameraNotAvailableError(RuntimeError):
     pass
+
+
+def _candidate_backends() -> list[tuple[str, int]]:
+    if sys.platform == "win32":
+        return [
+            ("CAP_DSHOW", cv2.CAP_DSHOW),
+            ("CAP_MSMF", cv2.CAP_MSMF),
+            ("CAP_ANY", cv2.CAP_ANY),
+        ]
+    return [("CAP_ANY", cv2.CAP_ANY)]
 
 
 class OpenCVCamera:
@@ -49,30 +60,43 @@ class OpenCVCamera:
             if self._cap is not None and self._cap.isOpened():
                 return
 
-            backend = cv2.CAP_DSHOW if sys.platform == "win32" else cv2.CAP_ANY
-            cap = cv2.VideoCapture(self._device_index, backend)
-            if not cap.isOpened():
-                self._logger.error(
-                    "camera.open_failed",
+            attempted: list[str] = []
+            for name, backend in _candidate_backends():
+                attempted.append(name)
+                cap = cv2.VideoCapture(self._device_index, backend)
+                if not cap.isOpened():
+                    cap.release()
+                    self._logger.debug(
+                        "camera.backend_rejected",
+                        device_index=self._device_index,
+                        backend=name,
+                    )
+                    continue
+
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
+                cap.set(cv2.CAP_PROP_FPS, self._target_fps)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+                self._cap = cap
+                self._logger.info(
+                    "camera.opened",
                     device_index=self._device_index,
-                    backend=backend,
+                    backend=name,
+                    width=int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                    height=int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+                    fps=cap.get(cv2.CAP_PROP_FPS),
                 )
-                raise CameraNotAvailableError(
-                    f"Could not open camera {self._device_index}"
-                )
+                return
 
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._width)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._height)
-            cap.set(cv2.CAP_PROP_FPS, self._target_fps)
-            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-
-            self._cap = cap
-            self._logger.info(
-                "camera.opened",
+            self._logger.error(
+                "camera.open_failed",
                 device_index=self._device_index,
-                width=int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
-                height=int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-                fps=cap.get(cv2.CAP_PROP_FPS),
+                tried=attempted,
+            )
+            raise CameraNotAvailableError(
+                f"Could not open camera {self._device_index}. "
+                "Run `python scripts/probe_camera.py` to find a device that works."
             )
 
     def read(self) -> np.ndarray | None:

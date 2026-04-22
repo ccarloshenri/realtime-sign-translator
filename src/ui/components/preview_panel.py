@@ -59,7 +59,7 @@ class PreviewPanel(ctk.CTkFrame):
         )
         self._fps_label.pack(side="right", padx=(0, 12))
 
-        self._canvas = ctk.CTkLabel(
+        self._image_label = ctk.CTkLabel(
             self,
             text="",
             width=preview_size[0],
@@ -67,7 +67,7 @@ class PreviewPanel(ctk.CTkFrame):
             fg_color=PALETTE.bg_primary,
             corner_radius=8,
         )
-        self._canvas.pack(padx=16, pady=(0, 8))
+        self._image_label.pack(padx=16, pady=(0, 8))
 
         self._buffer_bar = ctk.CTkProgressBar(
             self,
@@ -79,7 +79,7 @@ class PreviewPanel(ctk.CTkFrame):
         self._buffer_bar.pack(fill="x", padx=16, pady=(0, 12))
 
         self._placeholder = self._build_placeholder()
-        self._canvas.configure(image=self._placeholder)
+        self._image_label.configure(image=self._placeholder)
         self._current_image: ctk.CTkImage | None = self._placeholder
 
     def update_view(
@@ -105,12 +105,12 @@ class PreviewPanel(ctk.CTkFrame):
             )
 
         if frame_bgr is None:
-            self._canvas.configure(image=self._placeholder)
+            self._image_label.configure(image=self._placeholder)
             self._current_image = self._placeholder
             return
 
         rendered = self._render(frame_bgr, landmarks_per_hand)
-        self._canvas.configure(image=rendered)
+        self._image_label.configure(image=rendered)
         self._current_image = rendered
 
     def _render(
