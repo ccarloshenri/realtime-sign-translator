@@ -40,6 +40,8 @@ artifacts/labels.json
 artifacts/libras_labels.json
 data/
 training/datasets/
+# Raw MINDS-Libras + landmark-only derivatives, too large for git
+minds-libras/
 
 # Raw samples collected from webcam
 samples/

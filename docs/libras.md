@@ -72,7 +72,42 @@ ordem ao carregar o modelo.
 
 ## Como usar
 
-### 1. Coletar amostras
+Há dois caminhos, dependendo de ter tempo pra gravar ou não.
+
+### Caminho rápido: usar MINDS-Libras (dataset público, CC-BY 4.0)
+
+Em vez de gravar suas próprias amostras, baixe um dataset brasileiro
+real e deixe o script converter pra nosso formato. O vocabulário vai
+ser o da MINDS-Libras (20 sinais: *Acontecer, Aluno, Amarelo, América,
+Aproveitar, Bala, Banco, Banheiro, Barulho, Cinco, Conhecer, Espelho,
+Esquina, Filho, Maçã, Medo, Ruim, Sapo, Vacina, Vontade*), **não** os
+10 sinais seed — porque é esse o vocabulário que existe no dataset
+público.
+
+```
+# ~2.5 GB de download (1 sinalizador) + processamento de ~100 vídeos
+python -m training.libras.fetch_minds_libras --signers 1
+
+# Constrói o dataset e treina (o --allow-unknown-labels é necessário
+# porque MINDS tem vocabulário diferente do LIBRAS_BASE_VOCABULARY seed)
+python -m training.preprocessing.build_dataset
+python -m training.libras.train_libras_model --allow-unknown-labels
+```
+
+Pra mais dados / melhor generalização, baixe mais sinalizadores
+(`--signers 1 2 3`). O dataset completo são 12 sinalizadores (~65 GB).
+Se faltar disco, use `--cleanup-videos` no fetch pra apagar os MP4s
+depois de extrair os landmarks — os `.npz` ocupam uma fração do tamanho.
+
+Depois troque `classifier.backend: libras` no `config.yaml` e rode
+`python -m src.main`. O modelo vai reconhecer os 20 sinais
+MINDS-Libras quando você executá-los na sua webcam. Atenção: o
+dataset foi gravado em condições de estúdio com chroma key, então a
+generalização pra sua cozinha iluminada por LED amarelado vai ser
+imperfeita — treinar misturando algumas amostras suas próprias
+(`collect_samples --label <nome>`) é o passo natural seguinte.
+
+### Caminho "dataset próprio": gravar amostras
 
 ```
 python -m training.data_collection.collect_samples --label olá --samples 40
